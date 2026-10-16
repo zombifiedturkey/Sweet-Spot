@@ -96,7 +96,16 @@ async function lb(p, query, { background = false } = {}) {
     await waitForSlot(background);
     const headers = { 'User-Agent': UA, Accept: 'application/json' };
     if (lbToken) headers.Authorization = `Token ${lbToken}`;
-    const res = await fetch(url, { headers });
+    let res;
+    try {
+      res = await fetch(url, { headers, signal: AbortSignal.timeout(20000) });
+    } catch (e) {
+      // Couldn't connect at all (ListenBrainz down, internet dropped, timed out): try once more.
+      if (attempt === 0) { await sleep(1500); continue; }
+      throw new Error(e && e.name === 'TimeoutError'
+        ? 'ListenBrainz took too long to answer. Try again in a moment.'
+        : 'Couldn’t reach ListenBrainz. It may be down for a moment, or check your internet connection.');
+    }
     noteLimits(res);
     if (rl.remaining != null) rl.remaining = Math.max(0, rl.remaining);
     if (res.status === 429 && attempt === 0) {
