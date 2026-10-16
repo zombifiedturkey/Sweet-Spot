@@ -677,3 +677,6 @@ label.set-row { cursor: pointer; }
   .disc-split { grid-template-columns: minmax(0, 1fr); }
   .disc-detail { position: static; max-height: none; }
 }
+
+.set-version { text-align: center; margin: 28px 0 8px; }
+.set-version a { color: inherit; text-decoration: underline; }

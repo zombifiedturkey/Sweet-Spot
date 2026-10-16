@@ -11,7 +11,7 @@ const path = require('path');
 const { app, safeStorage } = require('electron');
 
 const LB = 'https://api.listenbrainz.org/1';
-const UA = 'SweetSpot/0.1 (personal desktop Spotify player)';
+const UA = 'SweetSpot/1.0 ( https://github.com/zombifiedturkey/Sweet-Spot )';
 const PLAYLIST_TTL = 10 * 60 * 1000;
 const MATCH_TTL = 60 * 24 * 60 * 60 * 1000; // 60 days
 const MISS_TTL = 7 * 24 * 60 * 60 * 1000;   // retry "not found" after a week

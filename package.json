@@ -1,16 +1,71 @@
 {
   "name": "sweet-spot",
   "productName": "Sweet Spot",
-  "version": "0.1.0",
-  "description": "A personal Spotify player for Windows with a system-tray drop-down.",
+  "version": "1.0.0",
+  "description": "A Spotify desktop player for Windows 11 that lets you choose your own music instead of the algorithm.",
+  "author": "zombifiedturkey",
+  "license": "MIT",
+  "homepage": "https://github.com/zombifiedturkey/Sweet-Spot",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zombifiedturkey/Sweet-Spot.git"
+  },
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
     "vmp-sign": "python -m castlabs_evs.vmp sign-pkg node_modules/electron/dist",
-    "check": "node -e \"const fs=require('fs'),cp=require('child_process');const fl=['main.js','auth.js','settings.js','preload.js',...fs.readdirSync('src').filter(f=>f.endsWith('.js')).map(f=>'src/'+f)];for(const f of fl)cp.execFileSync(process.execPath,['--check',f],{stdio:'inherit'});console.log('All '+fl.length+' files OK')\""
+    "check": "node -e \"const fs=require('fs'),cp=require('child_process');const fl=['main.js','auth.js','settings.js','preload.js',...fs.readdirSync('src').filter(f=>f.endsWith('.js')).map(f=>'src/'+f)];for(const f of fl)cp.execFileSync(process.execPath,['--check',f],{stdio:'inherit'});console.log('All '+fl.length+' files OK')\"",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --win --dir"
   },
   "devDependencies": {
-    "electron": "https://github.com/castlabs/electron-releases#v44.5.1+wvcus"
+    "electron": "https://github.com/castlabs/electron-releases#v44.5.1+wvcus",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.sweetspot.app",
+    "productName": "Sweet Spot",
+    "copyright": "Copyright © 2026 zombifiedturkey",
+    "electronVersion": "44.5.1",
+    "electronDist": "node_modules/electron/dist",
+    "afterSign": "build/vmp-sign.js",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "auth.js",
+      "settings.js",
+      "preload.js",
+      "artistinfo.js",
+      "discover.js",
+      "src/**",
+      "assets/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sweet Spot",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Sweet-Spot-Setup-${version}.${ext}"
+    }
   }
 }

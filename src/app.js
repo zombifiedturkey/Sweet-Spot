@@ -2603,6 +2603,7 @@
           </div>`).join('')}
         <div class="set-row"><span></span><button class="btn-secondary" id="reset-hotkeys">Reset to defaults</button></div>
       </section>
+      <p class="muted small set-version">Sweet Spot ${esc(s.appVersion || '')} · <a href="https://github.com/zombifiedturkey/Sweet-Spot" target="_blank">GitHub</a></p>
     </div>`;
 
     view.querySelectorAll('.switch').forEach((cb) => {

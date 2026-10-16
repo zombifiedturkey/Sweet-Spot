@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 
-const UA = 'SweetSpot/0.1 (personal desktop Spotify player)';
+const UA = 'SweetSpot/1.0 ( https://github.com/zombifiedturkey/Sweet-Spot )';
 const TTL = 14 * 24 * 60 * 60 * 1000;
 const cacheFile = () => path.join(app.getPath('userData'), 'artist-info.json');
 let cache = null;

@@ -457,7 +457,8 @@ ipcMain.handle('settings:get', () => ({
   ...settings.load(),
   effectiveStyle: effectiveStyle(),
   acrylicSupported: supportsAcrylic(),
-  hotkeyFailures: registerHotkeys.lastFailed || []
+  hotkeyFailures: registerHotkeys.lastFailed || [],
+  appVersion: app.getVersion()
 }));
 ipcMain.handle('settings:set', (_e, patch) => {
   const before = settings.load();
