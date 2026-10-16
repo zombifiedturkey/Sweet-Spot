@@ -6,7 +6,20 @@
 (function () {
   const BASE = 'https://api.spotify.com/v1';
 
+  // When Spotify says "too many requests" it gives a Retry-After time. Every call then
+  // waits that out (short waits) or fails fast with a clear message (long ones), instead
+  // of each one hitting Spotify again and extending the block.
+  let cooldownUntil = 0;
+  let strikes = 0; // back off further each time Spotify says no in a row
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const rateLimited = (secs) => Object.assign(new Error(`Spotify needs a breather (too many requests). Try again in ${secs < 60 ? `${secs} seconds` : `${Math.ceil(secs / 60)} minutes`}.`), { status: 429, retryIn: secs });
+
   async function api(path, { method = 'GET', query, body, retry = true } = {}) {
+    const wait = cooldownUntil - Date.now();
+    if (wait > 0) {
+      if (wait > 15000) throw rateLimited(Math.ceil(wait / 1000));
+      await sleep(wait);
+    }
     const token = await window.sweetspot.getToken();
     if (!token) throw Object.assign(new Error('Not signed in'), { status: 401 });
     const url = new URL(BASE + path);
@@ -19,10 +32,13 @@
       },
       body: body ? JSON.stringify(body) : undefined
     });
-    if (res.status === 429 && retry) {
-      const wait = Math.min(Number(res.headers.get('Retry-After') || 1), 10) * 1000;
-      await new Promise((r) => setTimeout(r, wait));
-      return api(path, { method, query, body, retry: false });
+    if (res.status === 429) {
+      // Retry-After isn't always readable from the app, so fall back to a growing wait.
+      const secs = Math.max(1, Number(res.headers.get('Retry-After')) || [5, 15, 30, 60][Math.min(strikes, 3)]);
+      strikes++;
+      cooldownUntil = Math.max(cooldownUntil, Date.now() + secs * 1000);
+      if (retry && secs <= 15) return api(path, { method, query, body, retry: false });
+      throw rateLimited(secs);
     }
     // Spotify has been lowering page-size limits. If one is rejected, retry once with 10
     // (the smallest maximum it currently uses); the endless lists simply fetch more pages.
@@ -31,6 +47,7 @@
       const m = peek && peek.error && String(peek.error.message || '');
       if (/limit/i.test(m || '')) return api(path, { method, query: { ...query, limit: 10 }, body, retry: false });
     }
+    strikes = 0;
     if (res.status === 204) return null;
     const text = await res.text();
     const data = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
@@ -45,6 +62,7 @@
 
   window.SpotifyAPI = {
     api,
+    coolingDown: () => Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000)),
     me: () => api('/me'),
 
     search: (q, offset = 0) => api('/search', { query: { q, type: 'track,artist,album,playlist', limit: 10, offset } }),

@@ -222,7 +222,7 @@
     if (!me) return;
     let d = delay;
     if (d === undefined) {
-      d = isLocal() ? 15000 : np && !np.paused ? 3000 : 8000;
+      d = isLocal() ? 15000 : np && !np.paused ? 5000 : 10000;
       if (np && !np.paused) d = Math.min(d, Math.max(500, np.duration - livePos() + 400)); // catch the track change
     }
     pollTimer = setTimeout(poll, d);
@@ -1163,7 +1163,7 @@
     list.append(tracks);
     if (list.done) sentinel.classList.add('done');
     else {
-      const io = new IntersectionObserver((entries) => { if (entries.some((x) => x.isIntersecting)) list.more(); }, { root, rootMargin: root === content ? '800px' : '300px' });
+      const io = new IntersectionObserver((entries) => { if (entries.some((x) => x.isIntersecting)) list.more(); }, { root, rootMargin: root === content ? '800px' : '120px' });
       io.observe(sentinel);
       observers.push(io);
     }
@@ -1425,20 +1425,33 @@
       timer = setTimeout(() => {
         route.q = input.value.trim(); // update history entry in place
         runSearch(route.q, c);
-      }, 350);
+      }, 550);
     });
     if (route.q) runSearch(route.q, c);
   }
 
+  // Recent searches are reused, so backspacing or going Back doesn't ask Spotify again.
+  const searchCache = new Map();
+  let searchRetry = null;
   async function runSearch(q, c) {
     const out = $('search-results');
     if (!out) return;
     observers.forEach((o) => o.disconnect());
     observers = [];
+    clearTimeout(searchRetry);
     if (!q) { out.innerHTML = ''; return; }
+    if (q.length < 2) { out.innerHTML = `<p class="muted">Keep typing…</p>`; return; }
     out.innerHTML = `<div class="loading">Searching…</div>`;
     try {
-      const r = await API.search(q);
+      const key = q.toLowerCase();
+      const hit = searchCache.get(key);
+      let r;
+      if (hit && Date.now() - hit.at < 5 * 60 * 1000) r = hit.r;
+      else {
+        r = await API.search(q);
+        searchCache.set(key, { at: Date.now(), r });
+        if (searchCache.size > 40) searchCache.delete(searchCache.keys().next().value);
+      }
       if (!c.alive() || ($('search-input') || {}).value?.trim() !== q) return; // a newer search is running
       const tracks = (r.tracks ? r.tracks.items : []).filter(Boolean).map(normTrack);
       const artistsList = (r.artists ? r.artists.items : []).filter(Boolean);
@@ -1467,13 +1480,26 @@
           fetchMore: async (offset) => {
             const p = (await API.searchTracks(q, offset)).tracks;
             const items = (p.items || []).filter(Boolean);
-            return { tracks: items.map(normTrack), consumed: p.items.length, hasMore: !!p.next && offset < 300 };
+            return { tracks: items.map(normTrack), consumed: p.items.length, hasMore: !!p.next && offset < 100 };
           },
           onPlay: (i, l) => playItems({ uris: l.tracks.slice(i, i + 100).map((t) => t.uri) })
         });
       }
     } catch (e) {
-      if (c.alive()) out.innerHTML = `<p class="error">Search failed: ${esc(e.message)}</p>`;
+      if (!c.alive()) return;
+      if (e.status === 429 && e.retryIn <= 120) {
+        // Spotify asked us to wait: say so, count down and search again by itself.
+        let left = e.retryIn;
+        const tick = () => {
+          if (!c.alive() || ($('search-input') || {}).value?.trim() !== q) return;
+          if (left <= 0) { runSearch(q, c); return; }
+          out.innerHTML = `<p class="muted">Spotify’s asking us to slow down for a moment. Searching again in ${left}s…</p>`;
+          left--; searchRetry = setTimeout(tick, 1000);
+        };
+        tick();
+        return;
+      }
+      out.innerHTML = `<p class="error">Search failed: ${esc(e.message)}</p>`;
     }
   }
 
@@ -1738,9 +1764,24 @@
       const artistOk = wanted.some((w) => have.some((h) => h === w || (w.length > 3 && h.length > 3 && (h.includes(w) || w.includes(h)))));
       return (titleOk ? 2 : 0) + (artistOk ? 2 : 0) + (sn === tn ? 1 : 0);
     }
+    // Matching can mean a hundred Spotify searches for one playlist, so it's paced
+    // (about four a second across all playlists) and pauses while Spotify is asking
+    // for a break. That keeps room for the things you click.
+    let lastLookup = 0;
+    async function pace() {
+      for (;;) {
+        const cool = API.coolingDown();
+        if (cool > 0) { await new Promise((r) => setTimeout(r, cool * 1000 + 250)); continue; }
+        const gap = lastLookup + 250 - Date.now();
+        if (gap <= 0) break;
+        await new Promise((r) => setTimeout(r, gap));
+      }
+      lastLookup = Date.now();
+    }
     async function lookup(t) {
       const title = clean(t.title), artist = clean(firstArtist(t));
       for (const q of [`track:"${title}" artist:"${artist}"`, `${title} ${artist}`]) {
+        await pace();
         const r = await API.searchTrackMatch(q);
         let best = null, bestScore = 0;
         for (const s of ((r && r.tracks && r.tracks.items) || []).filter(Boolean)) {
@@ -1774,7 +1815,7 @@
           if (alive()) onMatch(i, m || false);
         }
       };
-      await Promise.all([worker(), worker(), worker()]);
+      await Promise.all([worker(), worker()]);
       if (Object.keys(fresh).length) window.sweetspot.matchPut(fresh).catch(() => {});
     }
     return { matchAll, slim };
