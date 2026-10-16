@@ -25,6 +25,13 @@ contextBridge.exposeInMainWorld('sweetspot', {
   matchGet: (keys) => ipcRenderer.invoke('match:get', keys),
   matchPut: (entries) => ipcRenderer.invoke('match:put', entries),
 
+  // Updates
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  getUpdate: () => ipcRenderer.invoke('update:get'),
+  downloadUpdate: () => ipcRenderer.send('update:download'),
+  installUpdate: () => ipcRenderer.send('update:install'),
+  onUpdate: on('update:status'),
+
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),

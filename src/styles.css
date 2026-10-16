@@ -680,3 +680,14 @@ label.set-row { cursor: pointer; }
 
 .set-version { text-align: center; margin: 28px 0 8px; }
 .set-version a { color: inherit; text-decoration: underline; }
+
+/* Update prompt */
+.update-card { background: rgba(var(--glass-rgb), .88) !important; backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 12px 32px rgba(0,0,0,.45); position: fixed; right: 20px; bottom: calc(var(--player-h) + 28px); width: 320px; padding: 14px 16px; border-radius: 12px; z-index: 70; display: flex; flex-direction: column; gap: 8px; animation: uc-in .25s ease; }
+.update-card.hidden { display: none; }
+@keyframes uc-in { from { opacity: 0; transform: translateY(8px); } }
+.uc-head { display: flex; align-items: center; gap: 8px; }
+.uc-ico { color: var(--accent); display: grid; font-size: 16px; }
+.uc-notes { margin: 0; line-height: 1.45; max-height: 6.2em; overflow: hidden; }
+.uc-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.uc-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; }
+.uc-bar span { display: block; height: 100%; background: var(--accent); transition: width .3s; }

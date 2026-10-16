@@ -32,6 +32,7 @@ const DEFAULTS = {
   miniPos: null,            // { x, y } top-left of the visible panel
   // Player
   volume: 0.7,
+  autoUpdate: true,         // check GitHub for new releases on start-up and every few hours
   // Global hotkeys (Electron accelerators; empty = off)
   hotkeys: {
     playPause: 'Ctrl+Alt+Space',

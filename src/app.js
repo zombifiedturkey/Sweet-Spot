@@ -125,6 +125,50 @@
   }
   $('banner').addEventListener('click', () => $('banner').classList.add('hidden'));
 
+  // ---------- Update prompt ----------
+  // A small card, bottom right, when a new release is out. "Later" hides it until the
+  // next check (a downloaded update also installs itself when you quit).
+  const updateCard = document.createElement('div');
+  updateCard.className = 'update-card glass hidden';
+  document.body.appendChild(updateCard);
+  let updDismissed = null;
+  function renderUpdate(st) {
+    if (!st || !['available', 'downloading', 'ready', 'error'].includes(st.state) || (st.state === 'error' && !st.message)) {
+      updateCard.classList.add('hidden'); return;
+    }
+    if (st.state === 'error' && st.manual) { updateCard.classList.add('hidden'); return; } // Settings shows it
+    if (updDismissed === `${st.state}:${st.version}`) return;
+    const head = (t) => `<div class="uc-head"><span class="uc-ico">${ICONS.sparkle}</span><b>${t}</b></div>`;
+    if (st.state === 'available') {
+      updateCard.innerHTML = `${head(`Sweet Spot ${esc(st.version)} is out`)}
+        ${st.notes ? `<p class="muted small uc-notes">${esc(st.notes).replace(/\n/g, '<br>')}</p>` : ''}
+        <div class="uc-actions"><button class="btn-secondary" data-u="later">Later</button>
+        <button class="btn-primary" data-u="get">${st.canInstall ? 'Update now' : 'Download'}</button></div>`;
+    } else if (st.state === 'downloading') {
+      updateCard.innerHTML = `${head(`Downloading ${esc(st.version || 'update')}…`)}
+        <div class="uc-bar"><span style="width:${st.percent || 0}%"></span></div>`;
+    } else if (st.state === 'ready') {
+      updateCard.innerHTML = `${head(`Update ${esc(st.version)} is ready`)}
+        <p class="muted small uc-notes">Restart Sweet Spot to finish. Or choose Later and it installs next time you quit.</p>
+        <div class="uc-actions"><button class="btn-secondary" data-u="later">Later</button>
+        <button class="btn-primary" data-u="install">Restart now</button></div>`;
+    } else {
+      updateCard.innerHTML = `${head('Update didn’t finish')}<p class="muted small uc-notes">${esc(st.message)}</p>
+        <div class="uc-actions"><button class="btn-secondary" data-u="later">Close</button></div>`;
+    }
+    updateCard.dataset.key = `${st.state}:${st.version}`;
+    updateCard.classList.remove('hidden');
+  }
+  updateCard.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-u]');
+    if (!b) return;
+    if (b.dataset.u === 'later') { updDismissed = updateCard.dataset.key; updateCard.classList.add('hidden'); }
+    if (b.dataset.u === 'get') window.sweetspot.downloadUpdate();
+    if (b.dataset.u === 'install') window.sweetspot.installUpdate();
+  });
+  window.sweetspot.onUpdate(renderUpdate);
+  window.sweetspot.getUpdate().then(renderUpdate).catch(() => {});
+
   // ---------- Normalising playback state ----------
   function normTrack(t) {
     if (!t) return null;
@@ -2644,6 +2688,14 @@
           </div>`).join('')}
         <div class="set-row"><span></span><button class="btn-secondary" id="reset-hotkeys">Reset to defaults</button></div>
       </section>
+      <section class="set-group">
+        <h2>Updates</h2>
+        ${toggleRow('autoUpdate', 'Check for updates automatically', 'Looks for a new release on GitHub when Sweet Spot starts and every few hours, and asks before installing.', s)}
+        <div class="set-row">
+          <span><span class="set-label">Version ${esc(s.appVersion || '')}</span><span class="set-hint" id="upd-status">${s.updatesFromSource ? 'Running from source: updates open the download page.' : ''}</span></span>
+          <button class="btn-secondary" id="upd-check">Check for updates</button>
+        </div>
+      </section>
       <p class="muted small set-version">Sweet Spot ${esc(s.appVersion || '')} · <a href="https://github.com/zombifiedturkey/Sweet-Spot" target="_blank">GitHub</a></p>
     </div>`;
 
@@ -2742,6 +2794,19 @@
         await saveHotkey(input.dataset.action, accel);
       });
     });
+    $('upd-check').onclick = async () => {
+      const b = $('upd-check');
+      b.disabled = true; b.textContent = 'Checking…';
+      const st = await window.sweetspot.checkUpdate().catch(() => null);
+      if (!$('upd-check')) return;
+      b.disabled = false; b.textContent = 'Check for updates';
+      $('upd-status').textContent = !st ? 'Couldn’t check right now.'
+        : st.state === 'none' ? 'You’re on the latest version.'
+        : st.state === 'available' ? `Version ${st.version} is available.`
+        : st.state === 'ready' ? `Version ${st.version} is ready to install.`
+        : st.state === 'downloading' ? 'Downloading the update…'
+        : st.message || '';
+    };
     $('reset-hotkeys').onclick = async () => {
       await window.sweetspot.setSettings({ hotkeys: DEFAULT_HOTKEYS });
       render(hist[hIdx], content.scrollTop);

@@ -270,10 +270,24 @@ This uses **electron-builder** to package Sweet Spot and creates **`dist\Sweet-S
 
 **To publish a release on GitHub:**
 
-1. Update `"version"` in `package.json` (for example `1.0.0` → `1.1.0`) and run `npm run dist`.
+1. Update `"version"` in `package.json` (for example `1.1.0` → `1.2.0`) and run `npm run dist`.
 2. On GitHub, open the repo's **Releases → Draft a new release**.
-3. Create a tag such as `v1.1.0`, give the release a title and notes, and drag in `dist\Sweet-Spot-Setup-1.1.0.exe`.
-4. Click **Publish release**.
+3. Create a tag that matches the version, such as `v1.2.0`, and give the release a title and notes.
+4. Drag in **all three** files from `dist`:
+   - `Sweet-Spot-Setup-1.2.0.exe`, the installer
+   - `Sweet-Spot-Setup-1.2.0.exe.blockmap`, which lets updates download only what changed
+   - `latest.yml`, which tells installed copies that a new version is out
+5. Click **Publish release**.
+
+### How auto-update works
+
+Installed copies check GitHub for a newer release about 10 seconds after starting and every 6 hours, and you can check any time from **Settings → Updates**. When one is found, a card asks before doing anything:
+
+- **Update now** downloads the new installer in the background, then offers **Restart now**. Choose **Later** and it installs the next time you quit Sweet Spot.
+- If a release is missing `latest.yml`, the card offers **Download** instead, which opens the release page.
+- Turn off **Check for updates automatically** in Settings to stop the checks.
+
+Drafts and pre-releases are ignored, so you can prepare a release without anyone being prompted.
 
 ---
 
@@ -309,6 +323,7 @@ src/spotify.js   Spotify Web API client  src/icons.js    SVG icons
 src/theme.css    Colours and fonts (edit me)
 assets/          App and tray icons
 build/vmp-sign.js  Installer build step that VMP-signs the app for Spotify's DRM
+updater.js       Checks GitHub Releases for updates and installs them
 ```
 
 ---

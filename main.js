@@ -28,6 +28,7 @@ const auth = require('./auth');
 const settings = require('./settings');
 const artistInfo = require('./artistinfo');
 const discover = require('./discover');
+const updater = require('./updater');
 
 // Visual sizes of the floating panels (excluding any shadow margin).
 const FLYOUT_W = 348;
@@ -458,7 +459,8 @@ ipcMain.handle('settings:get', () => ({
   effectiveStyle: effectiveStyle(),
   acrylicSupported: supportsAcrylic(),
   hotkeyFailures: registerHotkeys.lastFailed || [],
-  appVersion: app.getVersion()
+  appVersion: app.getVersion(),
+  updatesFromSource: !app.isPackaged
 }));
 ipcMain.handle('settings:set', (_e, patch) => {
   const before = settings.load();
@@ -467,6 +469,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
   let hotkeyFailures = registerHotkeys.lastFailed || [];
   if (patch.hotkeys) hotkeyFailures = registerHotkeys.lastFailed = registerHotkeys();
   if ('startWithWindows' in patch && patch.startWithWindows !== before.startWithWindows) applyLoginItem();
+  if ('autoUpdate' in patch && patch.autoUpdate !== before.autoUpdate) startUpdates();
   if (effectiveStyle() !== styleBefore) rebuildPanels();
   else if ('miniLayout' in patch && patch.miniLayout !== before.miniLayout) resizeMini();
   return { ...broadcastSettings(), hotkeyFailures };
@@ -557,7 +560,28 @@ async function start() {
   if (settings.load().miniOpen) toggleMini(true);
   registerHotkeys.lastFailed = registerHotkeys();
   applyLoginItem();
+  startUpdates();
 }
+
+// ---------- Updates ----------
+let updateTimer = null;
+function startUpdates() {
+  updater.init({
+    onStatus: (s) => {
+      if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('update:status', s);
+      if (s.state === 'available' && !s.manual && tray) tray.setToolTip(`Sweet Spot — update ${s.version} available`);
+    },
+    onBeforeInstall: () => { quitting = true; }
+  });
+  clearInterval(updateTimer);
+  if (settings.load().autoUpdate === false) return;
+  setTimeout(() => updater.check(), 10000);
+  updateTimer = setInterval(() => updater.check(), 6 * 60 * 60 * 1000);
+}
+ipcMain.handle('update:check', () => updater.check({ manual: true }));
+ipcMain.handle('update:get', () => updater.getState());
+ipcMain.on('update:download', () => updater.download());
+ipcMain.on('update:install', () => updater.install());
 
 app.whenReady().then(start);
 app.on('will-quit', () => globalShortcut.unregisterAll());
