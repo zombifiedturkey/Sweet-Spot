@@ -30,8 +30,7 @@
     "electronVersion": "44.5.1+wvcus",
     "electronDownload": {
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/",
-      "customDir": "v44.5.1+wvcus",
-      "customFilename": "electron-v44.5.1+wvcus-win32-x64.zip"
+      "customDir": "v44.5.1+wvcus"
     },
     "afterSign": "build/vmp-sign.js",
     "directories": {
