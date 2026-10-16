@@ -24,12 +24,30 @@
   }
   const rateLimited = (secs) => Object.assign(new Error(`Spotify has paused requests from this app (too many requests). It should work again ${waitText(secs)}.`), { status: 429, retryIn: secs });
 
-  async function api(path, { method = 'GET', query, body, retry = true } = {}) {
+  // Request budget. Spotify doesn't publish its limit for personal apps and punishes
+  // bursts with hours-long pauses, so Sweet Spot keeps itself well under: at most
+  // BUDGET requests in any 30 seconds, and background work (checking playback,
+  // matching Discover songs) only gets the first BG_BUDGET of those, which leaves
+  // room for whatever you click.
+  const WINDOW = 30000, BUDGET = 40, BG_BUDGET = 15;
+  const sent = [];
+  async function waitForBudget(background) {
+    const cap = background ? BG_BUDGET : BUDGET;
+    for (;;) {
+      const now = Date.now();
+      while (sent.length && now - sent[0] > WINDOW) sent.shift();
+      if (sent.length < cap) { sent.push(now); return; }
+      await sleep(sent[0] + WINDOW - now + 50);
+    }
+  }
+
+  async function api(path, { method = 'GET', query, body, retry = true, background = false } = {}) {
     const wait = cooldownUntil - Date.now();
     if (wait > 0) {
-      if (wait > 15000) throw rateLimited(Math.ceil(wait / 1000));
+      if (background || wait > 15000) throw rateLimited(Math.ceil(wait / 1000));
       await sleep(wait);
     }
+    await waitForBudget(background);
     const token = await window.sweetspot.getToken();
     if (!token) throw Object.assign(new Error('Not signed in'), { status: 401 });
     const url = new URL(BASE + path);
@@ -48,7 +66,7 @@
       strikes++;
       cooldownUntil = Math.max(cooldownUntil, Date.now() + secs * 1000);
       saveCooldown();
-      if (retry && secs <= 15) return api(path, { method, query, body, retry: false });
+      if (retry && !background && secs <= 15) return api(path, { method, query, body, retry: false });
       throw rateLimited(secs);
     }
     // Spotify has been lowering page-size limits. If one is rejected, retry once with 10
@@ -56,7 +74,7 @@
     if (res.status === 400 && query && Number(query.limit) > 10 && retry) {
       const peek = await res.clone().json().catch(() => null);
       const m = peek && peek.error && String(peek.error.message || '');
-      if (/limit/i.test(m || '')) return api(path, { method, query: { ...query, limit: 10 }, body, retry: false });
+      if (/limit/i.test(m || '')) return api(path, { method, query: { ...query, limit: 10 }, body, retry: false, background });
     }
     strikes = 0;
     if (res.status === 204) return null;
@@ -73,6 +91,7 @@
 
   window.SpotifyAPI = {
     api,
+    usage: () => sent.filter((t) => Date.now() - t < WINDOW).length,
     coolingDown: () => Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000)),
     // Spotify's pause belongs to one developer app, so a new Client ID starts fresh.
     resetCooldown: () => { cooldownUntil = 0; strikes = 0; saveCooldown(); },
@@ -98,17 +117,17 @@
     updatePlaylist: (id, fields) => api(`/playlists/${id}`, { method: 'PUT', body: fields }),
     removeFromPlaylist: (id, uris) => api(`/playlists/${id}/items`, { method: 'DELETE', body: { items: uris.map((uri) => ({ uri })) } }),
     reorderPlaylist: (id, rangeStart, insertBefore) => api(`/playlists/${id}/items`, { method: 'PUT', body: { range_start: rangeStart, insert_before: insertBefore, range_length: 1 } }),
-    searchTrackMatch: (q) => api('/search', { query: { q, type: 'track', limit: 5 } }),
+    searchTrackMatch: (q, background = false) => api('/search', { query: { q, type: 'track', limit: 5 }, background }),
 
     // Library (generic endpoints)
-    libraryContains: (uris) => api('/me/library/contains', { query: { uris: ids(uris) } }),
+    libraryContains: (uris, background = false) => api('/me/library/contains', { query: { uris: ids(uris) }, background }),
     // Spotify's library endpoints take the URIs in the web address (max 40 per call), not in the body.
     saveToLibrary: async (uris) => { for (let i = 0; i < uris.length; i += 40) await api('/me/library', { method: 'PUT', query: { uris: ids(uris.slice(i, i + 40)) } }); },
     removeFromLibrary: async (uris) => { for (let i = 0; i < uris.length; i += 40) await api('/me/library', { method: 'DELETE', query: { uris: ids(uris.slice(i, i + 40)) } }); },
 
     // Player
-    playbackState: () => api('/me/player'),
-    queue: () => api('/me/player/queue'),
+    playbackState: (background = false) => api('/me/player', { background }),
+    queue: (background = false) => api('/me/player/queue', { background }),
     transfer: (deviceId, play = false) => api('/me/player', { method: 'PUT', body: { device_ids: [deviceId], play } }),
     play: (deviceId, body = {}) => api('/me/player/play', { method: 'PUT', query: { device_id: deviceId }, body }),
     setShuffle: (deviceId, state) => api('/me/player/shuffle', { method: 'PUT', query: { state, device_id: deviceId } }),

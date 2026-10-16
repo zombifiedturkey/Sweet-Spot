@@ -276,7 +276,7 @@
 
   async function poll() {
     try {
-      const p = await API.playbackState();
+      const p = await API.playbackState(true);
       // While this computer is playing, the SDK is the source of truth — only a
       // different device taking over (which the SDK also announces) should change that.
       if (isLocal() && (!p || !p.device || p.device.id === deviceId)) { schedulePoll(); return; }
@@ -289,7 +289,7 @@
   async function refreshLiked() {
     const uri = np && np.track.uri;
     try {
-      const [isLiked] = await API.libraryContains([uri]);
+      const [isLiked] = await API.libraryContains([uri], true);
       if (!np || np.track.uri !== uri) return;
       liked = !!isLiked;
     } catch { liked = false; }
@@ -299,7 +299,7 @@
 
   async function refreshQueue() {
     try {
-      const q = await API.queue();
+      const q = await API.queue(true);
       queueFull = (q && q.queue ? q.queue : []).slice(0, 30).map(normTrack).filter(Boolean);
     } catch {
       const next = sdkState && sdkState.track_window ? sdkState.track_window.next_tracks : [];
@@ -1810,61 +1810,53 @@
       const artistOk = wanted.some((w) => have.some((h) => h === w || (w.length > 3 && h.length > 3 && (h.includes(w) || w.includes(h)))));
       return (titleOk ? 2 : 0) + (artistOk ? 2 : 0) + (sn === tn ? 1 : 0);
     }
-    // Matching can mean a hundred Spotify searches for one playlist, so it's paced
-    // (about four a second across all playlists) and pauses while Spotify is asking
-    // for a break. That keeps room for the things you click.
-    let lastLookup = 0;
-    async function pace() {
-      for (;;) {
-        const cool = API.coolingDown();
-        if (cool > 0) { await new Promise((r) => setTimeout(r, cool * 1000 + 250)); continue; }
-        const gap = lastLookup + 250 - Date.now();
-        if (gap <= 0) break;
-        await new Promise((r) => setTimeout(r, gap));
-      }
-      lastLookup = Date.now();
-    }
-    async function lookup(t) {
+    // One Spotify search per song (a looser second search only when the first finds
+    // nothing at all). Results are remembered in memory and on disk, so a song is only
+    // ever looked up once.
+    async function lookup(t, background) {
       const title = clean(t.title), artist = clean(firstArtist(t));
       for (const q of [`track:"${title}" artist:"${artist}"`, `${title} ${artist}`]) {
-        await pace();
-        const r = await API.searchTrackMatch(q);
+        const r = await API.searchTrackMatch(q, background);
+        const items = ((r && r.tracks && r.tracks.items) || []).filter(Boolean);
         let best = null, bestScore = 0;
-        for (const s of ((r && r.tracks && r.tracks.items) || []).filter(Boolean)) {
+        for (const s of items) {
           const sc = score(s, t);
           if (sc > bestScore) { best = s; bestScore = sc; }
         }
         if (best && bestScore >= 4) return slim(best);
+        if (items.length) return false; // Spotify had results, just not this song
       }
       return false;
     }
-    // onMatch(i, spotifyTrack | false) is called once per track, as each is resolved.
-    async function matchAll(tracks, onMatch, alive) {
-      const keys = tracks.map(keyOf);
-      const unknown = [...new Set(keys.filter((k) => !mem.has(k)))];
+
+    // Fill in whatever is already known (memory or the disk cache), without asking Spotify.
+    async function prime(tracks) {
+      const unknown = [...new Set(tracks.map(keyOf).filter((k) => !mem.has(k)))];
       if (unknown.length) {
         const cached = await window.sweetspot.matchGet(unknown).catch(() => ({}));
-        for (const [k, v] of Object.entries(cached)) mem.set(k, v);
+        for (const [k, val] of Object.entries(cached)) mem.set(k, val);
       }
-      const todo = [];
-      keys.forEach((k, i) => (tracks[i].spotify ? onMatch(i, tracks[i].spotify) : mem.has(k) ? onMatch(i, mem.get(k)) : todo.push(i)));
-      const inflight = new Map();
-      const fresh = {};
-      let next = 0;
-      const worker = async () => {
-        while (next < todo.length && alive()) {
-          const i = todo[next++];
-          const k = keys[i];
-          if (!inflight.has(k)) inflight.set(k, lookup(tracks[i]).catch(() => null)); // null = error, try again another time
-          const m = await inflight.get(k);
-          if (m !== null) { mem.set(k, m); fresh[k] = m; }
-          if (alive()) onMatch(i, m || false);
-        }
-      };
-      await Promise.all([worker(), worker()]);
-      if (Object.keys(fresh).length) window.sweetspot.matchPut(fresh).catch(() => {});
+      return tracks.map((t) => (t.spotify ? t.spotify : mem.has(keyOf(t)) ? mem.get(keyOf(t)) : undefined));
     }
-    return { matchAll, slim };
+
+    const inflight = new Map();
+    let fresh = {}, saveTimer = null;
+    // Returns the Spotify track, false if it isn't on Spotify, or null if the lookup failed.
+    function matchOne(t, background = true) {
+      if (t.spotify) return Promise.resolve(t.spotify);
+      const k = keyOf(t);
+      if (mem.has(k)) return Promise.resolve(mem.get(k));
+      if (!inflight.has(k)) {
+        inflight.set(k, lookup(t, background).then((m) => {
+          mem.set(k, m); fresh[k] = m;
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => { const f = fresh; fresh = {}; window.sweetspot.matchPut(f).catch(() => {}); }, 2000);
+          return m;
+        }, () => null).finally(() => inflight.delete(k)));
+      }
+      return inflight.get(k);
+    }
+    return { prime, matchOne, slim };
   })();
 
   // Quick mix straight from Spotify search, used when ListenBrainz can't make one
@@ -2227,53 +2219,109 @@
       </div>`;
     body.innerHTML = tracks.map((t, i) => pendingRow(t, i, 'pending')).join('');
 
-    let found = 0, done = 0, artSet = false;
-    const status = () => {
+    // Songs are matched to Spotify as their rows come into view (plus whatever Play or
+    // Save needs), not all at once: a long playlist would otherwise cost a hundred
+    // Spotify searches before you'd even scrolled.
+    const state = new Array(tracks.length).fill(undefined); // undefined = not looked up yet
+    let artSet = false;
+    const resolved = () => state.filter((x) => x !== undefined && x !== null).length;
+    const found = () => matched.filter(Boolean).length;
+    const status = (extra) => {
       if (!statusEl || !statusEl.isConnected) return;
-      statusEl.textContent = done < tracks.length ? ` · Finding songs on Spotify… ${done}/${tracks.length}` : ` · ${found} of ${tracks.length} found on Spotify`;
+      const n = resolved();
+      statusEl.textContent = extra ? ` · ${extra}` : n < tracks.length ? ` · ${found()} found on Spotify so far` : ` · ${found()} of ${tracks.length} found on Spotify`;
     };
-    status();
-    const setArt = () => {
+    const setArt = (force) => {
       const covers = [...new Set(matched.filter(Boolean).map((m) => img(m.album && m.album.images, 200)).filter(Boolean))].slice(0, 4);
-      if ((covers.length < 4 && done < tracks.length) || !covers.length || !artEl || !artEl.isConnected) return;
+      if ((covers.length < 4 && !force) || !covers.length || !artEl || !artEl.isConnected) return;
       artSet = true;
       artEl.innerHTML = covers.length >= 4 ? `<div class="mosaic">${covers.map((u) => `<img src="${esc(u)}" alt="">`).join('')}</div>` : `<img src="${esc(covers[0])}" alt="">`;
       if (alive()) Backdrop.setPage(covers[0]);
     };
-
-    const matching = Matcher.matchAll(tracks, (i, m) => {
-      done++;
-      const row = body.children[i];
+    const apply = (i, m) => {
+      if (state[i] !== undefined && state[i] !== null) return;
+      state[i] = m;
+      const row = body.querySelector(`.lb-row[data-track-index="${i}"]`);
       if (m) {
-        found++;
         matched[i] = normTrack(m);
         if (row) row.outerHTML = rowHtml(matched[i], i, { showAlbum: !compact, showArt: true });
-      } else if (row) {
+      } else if (m === false && row) {
         row.outerHTML = pendingRow(tracks[i], i, 'missing');
       }
-      status();
-      if (!artSet) setArt();
-      markPlaying();
-    }, alive).then(() => {
+    };
+
+    // Rows already known (from earlier visits or the disk cache) fill in straight away.
+    const primed = Matcher.prime(tracks).then((known) => {
       if (!alive()) return;
-      if (!artSet) setArt();
-      if (onDone) onDone(found);
+      known.forEach((m, i) => { if (m !== undefined) apply(i, m); });
+      status(); setArt(resolved() === tracks.length); markPlaying();
+      watchRows();
     });
 
-    function playFrom(i) {
+    // Background queue for rows on screen, one lookup at a time.
+    const queue = [];
+    let working = false;
+    async function work() {
+      if (working) return;
+      working = true;
+      while (queue.length && alive()) {
+        const i = queue.shift();
+        if (state[i] !== undefined && state[i] !== null) continue;
+        const m = await Matcher.matchOne(tracks[i], true);
+        if (!alive()) break;
+        if (m === null) { if (API.coolingDown()) { status('Spotify has paused requests for now'); break; } continue; }
+        apply(i, m); status(); if (!artSet) setArt(resolved() === tracks.length); markPlaying();
+      }
+      working = false;
+    }
+    let io = null;
+    function watchRows() {
+      io = new IntersectionObserver((entries) => {
+        if (!alive()) { io.disconnect(); return; }
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const i = Number(e.target.dataset.trackIndex);
+          io.unobserve(e.target);
+          if (state[i] === undefined || state[i] === null) queue.push(i);
+        }
+        queue.sort((a, b) => a - b);
+        work();
+      }, { rootMargin: '150px' });
+      body.querySelectorAll('.lb-row.pending').forEach((r) => io.observe(r));
+    }
+
+    // Make sure a range of songs is matched now (for Play and Save), with progress.
+    async function ensure(from, to) {
+      await primed;
+      for (let i = from; i < to && alive(); i++) {
+        if (state[i] !== undefined && state[i] !== null) continue;
+        status(`Finding songs on Spotify… ${i + 1}/${to}${to - from > 30 ? ' (pacing it so Spotify doesn’t block us)' : ''}`);
+        const m = await Matcher.matchOne(tracks[i], false);
+        if (m === null) { status(); throw new Error(API.coolingDown() ? 'Spotify has paused requests for now. Try again later.' : 'Couldn’t reach Spotify.'); }
+        apply(i, m);
+      }
+      status(); if (!artSet) setArt(true); markPlaying();
+    }
+
+    async function playFrom(i) {
+      try { await ensure(i, Math.min(tracks.length, i + 15)); }
+      catch (e) { if (!matched.some(Boolean)) return banner(e.message); }
       const songs = matched.map((m, k) => (m ? { k, uri: m.uri } : null)).filter(Boolean);
-      if (!songs.length) return banner('Still finding these songs on Spotify…');
+      if (!songs.length) return banner('None of these songs are on Spotify.');
       let at = songs.findIndex((x) => x.k >= i);
       if (at < 0) at = 0;
       const start = Math.max(0, at - 20);
       playItems({ uris: songs.slice(start, start + 100).map((x) => x.uri), offset: { position: at - start } });
     }
-    return { matching, playFrom, uris: () => [...new Set(matched.filter(Boolean).map((m) => m.uri))] };
+    const matching = primed.then(() => { if (onDone) onDone(1); });
+    return { matching, playFrom, ensureAll: () => ensure(0, tracks.length), uris: () => [...new Set(matched.filter(Boolean).map((m) => m.uri))] };
   }
 
   async function saveLbPlaylist(btn, m, name, description) {
     btn.disabled = true;
-    await m.matching;
+    try { await m.ensureAll(); }
+    catch (e) { banner(e.message); if (btn.isConnected) btn.disabled = false; return; }
+    if (!m.uris().length) { banner('None of these songs are on Spotify.'); if (btn.isConnected) btn.disabled = false; return; }
     await createPlaylistFlow({ name, description, uris: m.uris() });
     if (btn.isConnected) btn.disabled = false;
   }

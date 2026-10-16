@@ -36,7 +36,7 @@ Sweet Spot plays your Spotify music in its own liquid-glass window, tucks into t
   - **Instant mix:** a fresh playlist around an artist or genre, in Familiar, Mixed or Deep cuts flavours. ListenBrainz now only builds these for signed-in users, so paste your free **ListenBrainz token** into Settings (find it at listenbrainz.org → Settings → User token). Without one, Sweet Spot makes a **quick mix from Spotify search** instead.
   - **Community playlists** and **Made for you** are listed on the left. Click one and it opens in the panel on the right with its full track list, so you can flick between playlists without leaving the page.
   - **Made for you:** add your ListenBrainz username in Settings to get *Weekly Jams* and *Weekly Exploration*, a stand-in for Discover Weekly.
-  - Songs are matched to Spotify automatically (matches are cached), and any playlist or mix can be **saved to your Spotify playlists**.
+  - Songs are matched to Spotify as they scroll into view (matches are remembered), and any playlist or mix can be **saved to your Spotify playlists**.
 - **Your playlists:** create them with **+** in Your Library or **Add to playlist → New playlist…**. Edit details, delete, remove songs and **drag to reorder**.
 - **Now playing panel:** the button at the far right of the player bar (or Ctrl+Q) opens a panel on the right with big album art, what it's *playing from*, and **Next up**. It stays open on every page until you click the button again, and Sweet Spot remembers whether it was open.
 - **Search** shows artists, albums and playlists on the left and songs in their own scrolling box on the right.
@@ -201,6 +201,8 @@ Your settings and caches live in `%APPDATA%\Sweet Spot`. Deleting that folder re
 ---
 
 ## Spotify limits to know about
+
+**Request limits.** Spotify limits how many requests personal apps can make, and the allowance is shared by every app on your developer account. Going over it can pause the app for hours. Sweet Spot stays well under it: it spaces out its own requests, gives anything you click priority over background work, and matches Discover songs only as you scroll to them. If Spotify does pause it, Sweet Spot says when it'll be back and waits quietly, even across restarts. Creating another developer app doesn't get around a pause, because they share the allowance.
 
 These are Spotify's rules for personal (Development Mode) apps since early 2026, not bugs in Sweet Spot:
 
