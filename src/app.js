@@ -1897,7 +1897,7 @@
     </button>`;
   };
 
-  // Loads each visible row's full playlist (a few at a time) to fill in song count and length.
+  // Loads each visible row's full playlist (one at a time, in the background) to fill in song count and length.
   // The results are cached in the app, so opening the playlist afterwards is instant.
   function loadLbStats(container, c) {
     const rows = [...container.querySelectorAll('.lb-item')].filter((r) => r.querySelector('.lb-skel'));
@@ -1911,11 +1911,11 @@
       row.classList.toggle('lb-empty', n === 0);
     };
     const pump = () => {
-      while (running < 3 && queue.length) {
+      while (running < 1 && queue.length) {
         const row = queue.shift();
         if (!c.alive() || !row.isConnected) continue;
         running++;
-        window.sweetspot.lbPlaylist(row.dataset.id)
+        window.sweetspot.lbPlaylist(row.dataset.id, { background: true })
           .then((d) => { if (row.isConnected) fill(row, d); }, () => { if (row.isConnected) fill(row, null); })
           .finally(() => { running--; pump(); });
       }
@@ -2063,7 +2063,7 @@
         if (c.alive()) out.innerHTML = `<p class="error small">Search failed: ${esc(ipcMsg(e))}</p>`;
       }
     };
-    $('lb-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => runCommunity($('lb-q').value.trim()), 450); });
+    $('lb-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => runCommunity($('lb-q').value.trim()), 350); });
     view.querySelectorAll('[data-cq]').forEach((b) => b.onclick = () => { $('lb-q').value = b.dataset.cq; runCommunity(b.dataset.cq); });
     if (route.q) runCommunity(route.q);
     if (route.sel) showPlaylistDetail(route.sel, route.selKind, route, c, markSelected);

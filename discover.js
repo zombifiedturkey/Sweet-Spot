@@ -53,16 +53,55 @@ async function setToken(token) {
 
 const tokenStatus = () => ({ connected: !!lbToken, user: lbUser });
 
-async function lb(p, query) {
+// ---------- Rate limiting ----------
+// ListenBrainz asks apps for no more than about one call per second and reports its
+// limits in X-RateLimit-* headers. Things you click (search, opening a playlist) go
+// straight out; background lookups (song counts in the lists) queue one at a time,
+// a second apart, and leave headroom so they never hold up a search.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const rl = { remaining: null, resetAt: 0 };
+
+function noteLimits(res) {
+  const rem = Number(res.headers.get('X-RateLimit-Remaining'));
+  const reset = Number(res.headers.get('X-RateLimit-Reset-In'));
+  if (Number.isFinite(rem)) rl.remaining = rem;
+  if (Number.isFinite(reset)) rl.resetAt = Date.now() + reset * 1000;
+}
+
+async function waitForSlot(background) {
+  const reserve = background ? 4 : 0;
+  for (let i = 0; i < 20; i++) {
+    const now = Date.now();
+    if (rl.remaining == null || now >= rl.resetAt || rl.remaining > reserve) return;
+    await sleep(Math.min(rl.resetAt - now + 50, 5000));
+  }
+}
+
+let bgChain = Promise.resolve();
+let bgLast = 0;
+function inBackground(fn) {
+  const run = bgChain.then(async () => {
+    const gap = 1100 - (Date.now() - bgLast);
+    if (gap > 0) await sleep(gap);
+    try { return await fn(); } finally { bgLast = Date.now(); }
+  });
+  bgChain = run.catch(() => {});
+  return run;
+}
+
+async function lb(p, query, { background = false } = {}) {
   const url = new URL(LB + p);
   if (query) for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
   for (let attempt = 0; attempt < 2; attempt++) {
+    await waitForSlot(background);
     const headers = { 'User-Agent': UA, Accept: 'application/json' };
     if (lbToken) headers.Authorization = `Token ${lbToken}`;
     const res = await fetch(url, { headers });
+    noteLimits(res);
+    if (rl.remaining != null) rl.remaining = Math.max(0, rl.remaining);
     if (res.status === 429 && attempt === 0) {
       const wait = Math.min(Number(res.headers.get('X-RateLimit-Reset-In') || 2), 10) * 1000;
-      await new Promise((r) => setTimeout(r, wait));
+      rl.remaining = 0; rl.resetAt = Date.now() + wait;
       continue;
     }
     const body = await res.json().catch(() => null);
@@ -135,7 +174,20 @@ async function searchPlaylists(query) {
   return list;
 }
 
-async function getPlaylist(id) {
+const inflight = new Map();
+async function getPlaylist(id, { background = false } = {}) {
+  const hit = playlistCache.get(id);
+  if (hit && Date.now() - hit.at < PLAYLIST_TTL) return hit.data;
+  // Share a request already going out, unless it's still waiting in the background queue
+  // and this one is a click (then fetch straight away instead of waiting behind it).
+  const cur = inflight.get(id);
+  if (cur && (background || !cur.background)) return cur.job;
+  const job = background ? inBackground(() => fetchPlaylist(id)) : fetchPlaylist(id);
+  inflight.set(id, { job, background });
+  try { return await job; } finally { if (inflight.get(id) && inflight.get(id).job === job) inflight.delete(id); }
+}
+
+async function fetchPlaylist(id) {
   const hit = playlistCache.get(id);
   if (hit && Date.now() - hit.at < PLAYLIST_TTL) return hit.data;
   const body = await lb(`/playlist/${encodeURIComponent(id)}`);

@@ -488,7 +488,7 @@ ipcMain.on('state:update', (_e, state) => {
 });
 ipcMain.handle('state:get', () => lastState);
 ipcMain.handle('lb:search', (_e, q) => discover.searchPlaylists(q));
-ipcMain.handle('lb:playlist', (_e, id) => discover.getPlaylist(id));
+ipcMain.handle('lb:playlist', (_e, id, opts) => discover.getPlaylist(id, { background: !!(opts && opts.background) }));
 ipcMain.handle('lb:radio', (_e, { prompt, mode }) => discover.radio(prompt, mode));
 ipcMain.handle('lb:createdfor', (_e, user) => discover.createdFor(user));
 ipcMain.handle('lb:token:set', (_e, token) => discover.setToken(token));

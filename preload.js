@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('sweetspot', {
 
   // Discover (ListenBrainz) + Spotify match cache
   lbSearch: (q) => ipcRenderer.invoke('lb:search', q),
-  lbPlaylist: (id) => ipcRenderer.invoke('lb:playlist', id),
+  lbPlaylist: (id, opts) => ipcRenderer.invoke('lb:playlist', id, opts),
   lbRadio: (prompt, mode) => ipcRenderer.invoke('lb:radio', { prompt, mode }),
   lbCreatedFor: (user) => ipcRenderer.invoke('lb:createdfor', user),
   lbSetToken: (token) => ipcRenderer.invoke('lb:token:set', token),
