@@ -71,7 +71,9 @@
     e.preventDefault();
     const id = $('client-id').value.trim();
     if (!id) return;
+    const before = (await window.sweetspot.authStatus().catch(() => ({}))).clientId;
     await window.sweetspot.setClientId(id);
+    if (id !== before) window.SpotifyAPI.resetCooldown();
     show('login');
   });
 

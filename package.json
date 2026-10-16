@@ -1,7 +1,7 @@
 {
   "name": "sweet-spot",
   "productName": "Sweet Spot",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "description": "A Spotify desktop player for Windows 11 that lets you choose your own music instead of the algorithm.",
   "author": "zombifiedturkey",
   "license": "MIT",

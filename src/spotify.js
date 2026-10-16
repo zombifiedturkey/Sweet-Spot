@@ -74,6 +74,8 @@
   window.SpotifyAPI = {
     api,
     coolingDown: () => Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000)),
+    // Spotify's pause belongs to one developer app, so a new Client ID starts fresh.
+    resetCooldown: () => { cooldownUntil = 0; strikes = 0; saveCooldown(); },
     me: () => api('/me'),
 
     search: (q, offset = 0) => api('/search', { query: { q, type: 'track,artist,album,playlist', limit: 10, offset } }),
