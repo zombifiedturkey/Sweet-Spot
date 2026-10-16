@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sweet Spot mini-player</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="mini.css">
+</head>
+<body class="layout-compact">
+  <div class="panel" id="panel">
+    <div class="bg" id="bg"></div>
+    <img class="art" id="art" alt="">
+    <div class="shade"></div>
+
+    <div class="tools">
+      <button class="tool" id="like-btn" title="Save to Liked Songs"></button>
+      <button class="tool" id="layout-btn" title="Switch layout"></button>
+      <button class="tool" id="open-btn" title="Open Sweet Spot"></button>
+      <button class="tool" id="close-btn" title="Close mini-player"></button>
+    </div>
+
+    <div class="info">
+      <div class="title" id="title">Nothing playing</div>
+      <div class="artist" id="artist"></div>
+      <div class="device hidden" id="device"></div>
+    </div>
+
+    <div class="controls">
+      <button class="ctl" id="prev-btn" title="Previous"></button>
+      <button class="play" id="play-btn" title="Play"></button>
+      <button class="ctl" id="next-btn" title="Next"></button>
+    </div>
+
+    <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
+  </div>
+
+  <script src="icons.js"></script>
+  <script src="spotify.js"></script>
+  <script src="themes.js"></script>
+  <script src="panel.js"></script>
+  <script src="mini.js"></script>
+</body>
+</html>

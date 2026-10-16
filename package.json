@@ -1,0 +1,16 @@
+{
+  "name": "sweet-spot",
+  "productName": "Sweet Spot",
+  "version": "0.1.0",
+  "description": "A personal Spotify player for Windows with a system-tray drop-down.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "vmp-sign": "python -m castlabs_evs.vmp sign-pkg node_modules/electron/dist",
+    "check": "node -e \"const fs=require('fs'),cp=require('child_process');const fl=['main.js','auth.js','settings.js','preload.js',...fs.readdirSync('src').filter(f=>f.endsWith('.js')).map(f=>'src/'+f)];for(const f of fl)cp.execFileSync(process.execPath,['--check',f],{stdio:'inherit'});console.log('All '+fl.length+' files OK')\""
+  },
+  "devDependencies": {
+    "electron": "https://github.com/castlabs/electron-releases#v44.5.1+wvcus"
+  }
+}

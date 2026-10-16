@@ -1,0 +1,80 @@
+/* Shared look for the floating panels (tray flyout + track toast).
+   Two window modes, set by the main process:
+   - mode-native: Windows 11 acrylic. Windows draws the blur, rounded corners and shadow.
+   - mode-css:    transparent window. We draw the corners and shadow ourselves inside
+                  a 36px margin (matches SHADOW_M in main.js) that clicks fall through. */
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: transparent; overflow: hidden; }
+body { color: var(--text); font: 13px/1.4 var(--font); user-select: none; -webkit-font-smoothing: antialiased; }
+body.mode-css { padding: 36px; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+img { display: block; }
+.hidden { display: none !important; }
+
+:root {
+  --panel-alpha: .72;   /* set from Settings → Opacity */
+  --panel-rgb: 22, 22, 22;
+}
+
+.panel {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  background: rgba(var(--panel-rgb), var(--panel-alpha));
+}
+
+/* Our own frame + shadow when Windows isn't drawing one */
+body.mode-css .panel {
+  border-radius: 10px;
+  /* A hairline light edge on top of a darker outline reads as glass on any wallpaper */
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .05),
+    inset 0 1px 0 0 rgba(255, 255, 255, .04),
+    0 0 0 .5px rgba(0, 0, 0, .55),
+    0 1px 2px rgba(0, 0, 0, .30),
+    0 4px 10px -2px rgba(0, 0, 0, .30),
+    0 12px 24px -6px rgba(0, 0, 0, .40),
+    0 22px 40px -12px rgba(0, 0, 0, .50);
+}
+body.mode-native .panel { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, .06); }
+
+/* Solid style ignores the opacity setting */
+body.style-solid { --panel-alpha: 1 !important; }
+
+/* Glass with no blur: a touch of text shadow keeps type legible over busy wallpapers */
+body.style-glass .panel { text-shadow: 0 1px 2px rgba(0, 0, 0, .45); }
+
+/* Blurred album-art wash behind the content */
+.bg {
+  position: absolute; inset: -40px; z-index: -1;
+  background-size: cover; background-position: center;
+  filter: blur(40px) saturate(1.5) brightness(.5);
+  opacity: calc(var(--panel-alpha) * .5);
+  transition: opacity .4s;
+}
+body.no-wash .bg { opacity: 0; }
+
+/* Slide in from the taskbar edge */
+@keyframes panel-in { from { opacity: 0; transform: translate(var(--fx, 0), var(--fy, -10px)); } to { opacity: 1; transform: none; } }
+@keyframes panel-out { to { opacity: 0; transform: translate(var(--fx, 0), var(--fy, -10px)); } }
+body.edge-top { --fy: -10px; --fx: 0; }
+body.edge-bottom { --fy: 10px; --fx: 0; }
+body.edge-left { --fx: -10px; --fy: 0; }
+body.edge-right { --fx: 10px; --fy: 0; }
+.panel.anim-in { animation: panel-in .18s cubic-bezier(.2, .8, .2, 1); }
+.panel.anim-out { animation: panel-out .2s ease-in forwards; }
+
+.icon-btn { color: rgba(255, 255, 255, .7); font-size: 18px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; position: relative; transition: background .12s, color .12s; }
+.icon-btn:hover { color: var(--text); background: rgba(255, 255, 255, .1); }
+.icon-btn.active { color: var(--accent); }
+
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; margin: 0; background: linear-gradient(to right, var(--text) var(--fill, 0%), rgba(255,255,255,.22) var(--fill, 0%)); outline: none; cursor: pointer; }
+input[type=range]:hover { background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(255,255,255,.22) var(--fill, 0%)); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--text); opacity: 0; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+input[type=range]:hover::-webkit-slider-thumb { opacity: 1; }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }

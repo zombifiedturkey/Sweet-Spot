@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sweet Spot</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <style>
+    .panel { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 12px; cursor: pointer; }
+    .art { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; flex: none; background: rgba(255,255,255,.06); box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+    .text { min-width: 0; flex: 1; }
+    .kicker { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+    .title { font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sub { color: rgba(255,255,255,.68); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</head>
+<body>
+  <div class="panel" id="panel">
+    <div class="bg" id="bg"></div>
+    <img class="art" id="art" alt="">
+    <div class="text">
+      <div class="kicker" id="kicker">Now playing</div>
+      <div class="title" id="title"></div>
+      <div class="sub" id="sub"></div>
+    </div>
+  </div>
+  <script src="spotify.js"></script>
+  <script src="themes.js"></script>
+  <script src="panel.js"></script>
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const panel = $('panel');
+      Panel.init(panel);
+      panel.addEventListener('click', () => window.sweetspot.toastClick());
+      window.sweetspot.onToastShow((s) => {
+        const t = s.track;
+        Panel.setAccent(s.accent);
+        $('art').src = t.art;
+        $('bg').style.backgroundImage = `url("${t.art}")`;
+        $('title').textContent = t.name;
+        $('sub').textContent = `${t.artists} — ${t.album}`;
+        $('kicker').textContent = s.source === 'remote' ? `Now playing on ${s.device.name}` : 'Now playing';
+        Panel.animateIn(panel);
+      });
+      window.sweetspot.onToastHide(() => {
+        panel.classList.remove('anim-in');
+        panel.classList.add('anim-out');
+      });
+    })();
+  </script>
+</body>
+</html>

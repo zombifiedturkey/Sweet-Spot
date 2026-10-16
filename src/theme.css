@@ -1,0 +1,24 @@
+/* ------------------------------------------------------------------
+   Sweet Spot theme — change these to restyle both the desktop window
+   and the tray flyout in one place.
+   ------------------------------------------------------------------ */
+:root {
+  --bg: #121212;            /* main content background */
+  --bg-sidebar: #000000;    /* left sidebar */
+  --bg-elevated: #181818;   /* cards, player bar */
+  --bg-hover: #282828;      /* hover state for rows/cards */
+  --bg-flyout: rgba(24, 24, 24, 0.96);
+  --glass-rgb: 18, 18, 18;  /* tint of the liquid-glass panels in the main window */
+  --border: #2a2a2a;
+
+  --text: #ffffff;
+  --text-muted: #a7a7a7;
+  --accent: #1ed760;        /* play button, active states */
+  --accent-text: #000000;
+  --danger: #f15e6c;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+}

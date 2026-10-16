@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sweet Spot</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- First run: ask for the Spotify Client ID -->
+  <section id="setup" class="gate hidden">
+    <div class="gate-card">
+      <div class="brand-mark" id="setup-mark"></div>
+      <h1>Connect Sweet Spot to Spotify</h1>
+      <ol>
+        <li>Go to <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com/dashboard</a> and create an app.</li>
+        <li>Add this Redirect URI exactly: <code id="redirect-uri"></code></li>
+        <li>Tick <b>Web API</b> and <b>Web Playback SDK</b>, save, then paste the Client ID below.</li>
+      </ol>
+      <form id="setup-form">
+        <input id="client-id" placeholder="Client ID" autocomplete="off" spellcheck="false" required>
+        <button class="btn-primary" type="submit">Save</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Sign in -->
+  <section id="login" class="gate hidden">
+    <div class="gate-card">
+      <div class="brand-mark" id="login-mark"></div>
+      <h1>Sweet Spot</h1>
+      <p class="muted" id="login-text">Sign in with your Spotify Premium account. Your browser will open to Spotify's login page.</p>
+      <button class="btn-primary" id="login-btn">Sign in with Spotify</button>
+      <p class="error" id="login-error"></p>
+      <button class="btn-link" id="change-client">Change Client ID</button>
+    </div>
+  </section>
+
+  <!-- Blurred album-art backdrop behind everything (liquid-glass look) -->
+  <div id="backdrop" aria-hidden="true">
+    <div class="bd-layer"></div>
+    <div class="bd-layer"></div>
+    <div class="bd-shade"></div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app" class="hidden">
+    <!-- Title bar: drag to move, double-click to maximise -->
+    <header class="titlebar" id="titlebar">
+      <div class="tb-left">
+        <button class="glass-btn" id="library-btn" title="Your Library (Ctrl+B)"></button>
+        <button class="glass-btn round" id="hist-back" title="Back (Alt+←)" disabled></button>
+        <button class="glass-btn round" id="hist-fwd" title="Forward (Alt+→)" disabled></button>
+      </div>
+
+      <nav class="dock glass" id="dock">
+        <span class="dock-glow" id="dock-glow"></span>
+        <button class="dock-item active" data-view="home"><span class="ico" data-icon="home"></span><span>Home</span></button>
+        <button class="dock-item" data-view="search"><span class="ico" data-icon="search"></span><span>Search</span></button>
+        <button class="dock-item" data-view="discover"><span class="ico" data-icon="compass"></span><span>Discover</span></button>
+        <button class="dock-item" data-view="liked"><span class="ico" data-icon="heart"></span><span>Liked Songs</span></button>
+      </nav>
+
+      <div class="tb-right">
+        <button class="glass-btn round" id="help-btn" title="Keyboard shortcuts (?)"></button>
+        <button class="glass-btn round" id="settings-btn" title="Settings (Ctrl+,)"></button>
+        <span class="win-controls">
+          <button class="win-btn" id="win-min" title="Minimise to tray"></button>
+          <button class="win-btn" id="win-max" title="Maximise"></button>
+          <button class="win-btn close" id="win-close" title="Close"></button>
+        </span>
+      </div>
+    </header>
+
+    <!-- Library flyout (slides in from the left; can be pinned open) -->
+    <aside class="library glass" id="library">
+      <div class="lib-top">
+        <span class="lib-title"><span class="ico" data-icon="library"></span>Your Library</span>
+        <span class="lib-actions">
+          <button class="icon-btn" id="lib-new" title="New playlist"></button>
+          <button class="icon-btn" id="lib-pin" title="Keep open"></button>
+          <button class="icon-btn" id="lib-close" title="Close (Esc)"></button>
+        </span>
+      </div>
+      <div class="lib-filter"><span class="ico" data-icon="search"></span><input id="lib-filter" placeholder="Filter playlists" autocomplete="off" spellcheck="false"></div>
+      <div class="playlists" id="playlists"></div>
+    </aside>
+    <div class="lib-edge" id="lib-edge"></div>
+
+    <main class="content glass-panel" id="content">
+      <div id="view"></div>
+    </main>
+
+    <!-- Now playing + queue side panel (toggled from the player bar; stays open across pages) -->
+    <aside class="queue-panel glass-panel hidden" id="queue-panel">
+      <div class="qp-head"><h3>Now playing</h3><button class="icon-btn" id="qp-close" title="Close (Ctrl+Q)"></button></div>
+      <div class="qp-now" id="qp-now"></div>
+      <div class="qp-from" id="qp-from"></div>
+      <div id="queue-list"></div>
+    </aside>
+
+    <footer class="player glass" id="player">
+      <div id="remote-bar" class="remote-bar hidden"></div>
+      <div class="np" id="np-area">
+        <img id="np-art" class="np-art" alt="">
+        <div class="np-text">
+          <div id="np-title" class="np-title" title="Go to album"></div>
+          <div id="np-artist" class="np-artist muted" title="Go to artist"></div>
+        </div>
+        <button id="like-btn" class="icon-btn" title="Save to Liked Songs"></button>
+      </div>
+      <div class="controls">
+        <div class="buttons">
+          <button id="shuffle-btn" class="icon-btn" title="Shuffle (Ctrl+S)"></button>
+          <button id="prev-btn" class="icon-btn" title="Previous (Ctrl+←)"></button>
+          <button id="play-btn" class="play-btn" title="Play"></button>
+          <button id="next-btn" class="icon-btn" title="Next (Ctrl+→)"></button>
+          <button id="repeat-btn" class="icon-btn" title="Repeat (Ctrl+R)"></button>
+        </div>
+        <div class="progress">
+          <span id="pos" class="time">0:00</span>
+          <input id="seek" type="range" min="0" max="1000" value="0">
+          <span id="dur" class="time">0:00</span>
+        </div>
+      </div>
+      <div class="extras">
+        <div class="vol-row">
+          <button id="mute-btn" class="icon-btn" title="Mute"></button>
+          <input id="volume" type="range" min="0" max="100" value="70">
+        </div>
+        <div class="extra-btns">
+          <button id="devices-btn" class="icon-btn" title="Connect to a device"></button>
+          <button id="mini-btn" class="icon-btn" title="Mini-player (Ctrl+M)"></button>
+        </div>
+      </div>
+      <button id="queue-toggle" class="queue-toggle" title="Now playing and queue (Ctrl+Q)"></button>
+    </footer>
+
+    <div id="device-pop" class="popover glass hidden"></div>
+    <div id="ctx" class="ctx hidden"></div>
+    <div id="kbd-modal" class="modal hidden"></div>
+    <div id="banner" class="banner glass hidden"></div>
+  </div>
+
+  <script src="icons.js"></script>
+  <script src="spotify.js"></script>
+  <script src="themes.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

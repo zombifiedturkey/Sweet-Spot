@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sweet Spot</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="flyout.css">
+</head>
+<body>
+  <div class="panel" id="panel">
+    <div class="bg" id="bg"></div>
+    <div class="inner">
+      <div class="top">
+        <span class="label" id="np-label">Now playing</span>
+        <span class="top-actions">
+          <button class="icon-btn" id="devices-btn" title="Connect to a device"></button>
+          <button class="icon-btn" id="mini-btn" title="Mini-player"></button>
+          <button class="icon-btn" id="open-btn" title="Open Sweet Spot"></button>
+        </span>
+      </div>
+
+      <div id="empty" class="empty hidden">
+        <div class="empty-ico" id="empty-ico"></div>
+        <p>Nothing playing</p>
+        <button class="pill" id="empty-open">Open Sweet Spot</button>
+      </div>
+
+      <div id="np">
+        <img id="art" class="art" alt="">
+        <div class="meta">
+          <div class="text">
+            <div id="title" class="title"></div>
+            <div id="artist" class="artist"></div>
+          </div>
+          <button class="icon-btn" id="like-btn" title="Save to Liked Songs"></button>
+        </div>
+        <div class="progress">
+          <input id="seek" type="range" min="0" max="1000" value="0">
+          <div class="times"><span id="pos">0:00</span><span id="dur">0:00</span></div>
+        </div>
+        <div class="controls">
+          <button class="icon-btn" id="shuffle-btn" title="Shuffle"></button>
+          <button class="icon-btn big" id="prev-btn" title="Previous"></button>
+          <button class="play" id="play-btn" title="Play"></button>
+          <button class="icon-btn big" id="next-btn" title="Next"></button>
+          <button class="icon-btn" id="repeat-btn" title="Repeat"></button>
+        </div>
+        <div class="volume">
+          <button class="icon-btn small" id="mute-btn" title="Mute"></button>
+          <input id="volume" type="range" min="0" max="100" value="70">
+          <span id="vol-val" class="vol-val">70</span>
+        </div>
+      </div>
+
+      <div class="devices hidden" id="devices">
+        <div class="label">Connect to a device</div>
+        <div id="device-list" class="queue"></div>
+      </div>
+
+      <div class="upnext" id="upnext">
+        <div class="label" id="upnext-label">Up next</div>
+        <div id="queue" class="queue"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="icons.js"></script>
+  <script src="spotify.js"></script>
+  <script src="themes.js"></script>
+  <script src="panel.js"></script>
+  <script src="flyout.js"></script>
+</body>
+</html>
