@@ -9,10 +9,20 @@
   // When Spotify says "too many requests" it gives a Retry-After time. Every call then
   // waits that out (short waits) or fails fast with a clear message (long ones), instead
   // of each one hitting Spotify again and extending the block.
+  // Remembered across restarts, so reopening the app doesn't knock on Spotify's door again.
   let cooldownUntil = 0;
+  try { cooldownUntil = Number(localStorage.getItem('spotifyCooldownUntil')) || 0; } catch {}
+  const saveCooldown = () => { try { localStorage.setItem('spotifyCooldownUntil', String(cooldownUntil)); } catch {} };
   let strikes = 0; // back off further each time Spotify says no in a row
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const rateLimited = (secs) => Object.assign(new Error(`Spotify needs a breather (too many requests). Try again in ${secs < 60 ? `${secs} seconds` : `${Math.ceil(secs / 60)} minutes`}.`), { status: 429, retryIn: secs });
+  function waitText(secs) {
+    if (secs < 60) return `in ${secs} seconds`;
+    if (secs < 3600) return `in ${Math.ceil(secs / 60)} minutes`;
+    const at = new Date(Date.now() + secs * 1000);
+    const time = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `after ${time}${at.toDateString() !== new Date().toDateString() ? ' tomorrow' : ''}`;
+  }
+  const rateLimited = (secs) => Object.assign(new Error(`Spotify has paused requests from this app (too many requests). It should work again ${waitText(secs)}.`), { status: 429, retryIn: secs });
 
   async function api(path, { method = 'GET', query, body, retry = true } = {}) {
     const wait = cooldownUntil - Date.now();
@@ -37,6 +47,7 @@
       const secs = Math.max(1, Number(res.headers.get('Retry-After')) || [5, 15, 30, 60][Math.min(strikes, 3)]);
       strikes++;
       cooldownUntil = Math.max(cooldownUntil, Date.now() + secs * 1000);
+      saveCooldown();
       if (retry && secs <= 15) return api(path, { method, query, body, retry: false });
       throw rateLimited(secs);
     }
