@@ -101,10 +101,12 @@ async function lb(p, query, { background = false } = {}) {
       res = await fetch(url, { headers, signal: AbortSignal.timeout(20000) });
     } catch (e) {
       // Couldn't connect at all (ListenBrainz down, internet dropped, timed out): try once more.
-      if (attempt === 0) { await sleep(1500); continue; }
-      throw new Error(e && e.name === 'TimeoutError'
+      // Often it's just a reused connection that ListenBrainz had already closed.
+      if (attempt === 0) { await sleep(e && e.name === 'TimeoutError' ? 1500 : 300); continue; }
+      const code = e && e.cause && (e.cause.code || e.cause.name);
+      throw new Error((e && e.name === 'TimeoutError'
         ? 'ListenBrainz took too long to answer. Try again in a moment.'
-        : 'Couldn’t reach ListenBrainz. It may be down for a moment, or check your internet connection.');
+        : 'Couldn’t reach ListenBrainz. It may be down for a moment, or check your internet connection.') + (code ? ` (${code})` : ''));
     }
     noteLimits(res);
     if (rl.remaining != null) rl.remaining = Math.max(0, rl.remaining);
