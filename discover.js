@@ -89,7 +89,7 @@ function inBackground(fn) {
   return run;
 }
 
-async function lb(p, query, { background = false } = {}) {
+async function lb(p, query, { background = false, timeout = 20000, retryTimeout = true } = {}) {
   const url = new URL(LB + p);
   if (query) for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -98,11 +98,11 @@ async function lb(p, query, { background = false } = {}) {
     if (lbToken) headers.Authorization = `Token ${lbToken}`;
     let res;
     try {
-      res = await fetch(url, { headers, signal: AbortSignal.timeout(20000) });
+      res = await fetch(url, { headers, signal: AbortSignal.timeout(timeout) });
     } catch (e) {
       // Couldn't connect at all (ListenBrainz down, internet dropped, timed out): try once more.
       // Often it's just a reused connection that ListenBrainz had already closed.
-      if (attempt === 0) { await sleep(e && e.name === 'TimeoutError' ? 1500 : 300); continue; }
+      if (attempt === 0 && (retryTimeout || !(e && e.name === 'TimeoutError'))) { await sleep(e && e.name === 'TimeoutError' ? 1500 : 300); continue; }
       const code = e && e.cause && (e.cause.code || e.cause.name);
       throw new Error((e && e.name === 'TimeoutError'
         ? 'ListenBrainz took too long to answer. Try again in a moment.'
@@ -175,14 +175,38 @@ const listOf = (body) => {
     .filter((p) => p.id && !seen.has(p.id) && seen.add(p.id));
 };
 
-const searchCache = new Map();
+// Search results are kept on disk for a day. ListenBrainz's playlist search is a heavy
+// query on their side and sometimes slow or unavailable; when it is, a search you've
+// done before still shows its (slightly older) results instead of an error.
+const searchFile = () => path.join(app.getPath('userData'), 'lb-search-cache.json');
+let searchCache = null;
+function loadSearchCache() {
+  if (searchCache) return searchCache;
+  try { searchCache = new Map(Object.entries(JSON.parse(fs.readFileSync(searchFile(), 'utf8')))); } catch { searchCache = new Map(); }
+  return searchCache;
+}
+function saveSearchCache() {
+  const c = loadSearchCache();
+  const now = Date.now();
+  for (const [k, v] of c) if (now - v.at > 7 * 24 * 60 * 60 * 1000) c.delete(k);
+  while (c.size > 200) c.delete(c.keys().next().value);
+  try { fs.writeFileSync(searchFile(), JSON.stringify(Object.fromEntries(c))); } catch {}
+}
+
 async function searchPlaylists(query) {
   const key = String(query).toLowerCase().trim();
-  const hit = searchCache.get(key);
-  if (hit && Date.now() - hit.at < PLAYLIST_TTL) return hit.list;
-  const list = listOf(await lb('/playlist/search', { query, count: 40 }));
-  searchCache.set(key, { at: Date.now(), list });
-  return list;
+  const c = loadSearchCache();
+  const hit = c.get(key);
+  if (hit && Date.now() - hit.at < 24 * 60 * 60 * 1000) return { playlists: hit.list, at: hit.at };
+  try {
+    const list = listOf(await lb('/playlist/search', { query, count: 40 }, { timeout: 30000, retryTimeout: false }));
+    c.delete(key); c.set(key, { at: Date.now(), list });
+    saveSearchCache();
+    return { playlists: list, at: Date.now() };
+  } catch (e) {
+    if (hit) return { playlists: hit.list, at: hit.at, stale: true, error: e.message };
+    throw e;
+  }
 }
 
 const inflight = new Map();

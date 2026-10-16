@@ -2132,17 +2132,26 @@
       view.querySelectorAll('[data-cq]').forEach((b) => b.classList.toggle('on', b.dataset.cq === q));
       if (q.length < 3) { out.innerHTML = `<p class="muted small lb-hint">${q ? 'Type at least 3 letters.' : 'Search, or pick a topic above.'}</p>`; return; }
       out.innerHTML = '<div class="loading">Searching ListenBrainz…</div>';
+      // ListenBrainz's playlist search can be slow; say so rather than leave a silent spinner.
+      const slow = setTimeout(() => {
+        const l = out.querySelector('.loading');
+        if (l) l.textContent = 'Still searching… ListenBrainz is slow right now.';
+      }, 6000);
       try {
-        const list = await window.sweetspot.lbSearch(q);
+        const res = await window.sweetspot.lbSearch(q);
+        clearTimeout(slow);
         if (!c.alive() || $('lb-q').value.trim() !== q) return;
-        out.innerHTML = list.length ? list.map((p) => lbItem(p, 'community')).join('') : `<p class="muted small lb-hint">No shared playlists match “${esc(q)}”.</p>`;
+        const list = res.playlists || [];
+        const note = res.stale ? `<p class="muted small lb-hint">ListenBrainz search isn’t answering right now, so these are your results from ${esc(relTime(new Date(res.at).toISOString()))}.</p>` : '';
+        out.innerHTML = note + (list.length ? list.map((p) => lbItem(p, 'community')).join('') : `<p class="muted small lb-hint">No shared playlists match “${esc(q)}”.</p>`);
         markSelected();
         loadLbStats(out, c);
       } catch (e) {
-        if (c.alive()) out.innerHTML = `<p class="error small">Search failed: ${esc(ipcMsg(e))}</p>`;
+        clearTimeout(slow);
+        if (c.alive() && $('lb-q').value.trim() === q) out.innerHTML = `<p class="error small">Search failed: ${esc(ipcMsg(e))}</p>`;
       }
     };
-    $('lb-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => runCommunity($('lb-q').value.trim()), 350); });
+    $('lb-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => runCommunity($('lb-q').value.trim()), 700); });
     view.querySelectorAll('[data-cq]').forEach((b) => b.onclick = () => { $('lb-q').value = b.dataset.cq; runCommunity(b.dataset.cq); });
     if (route.q) runCommunity(route.q);
     if (route.sel) showPlaylistDetail(route.sel, route.selKind, route, c, markSelected);
