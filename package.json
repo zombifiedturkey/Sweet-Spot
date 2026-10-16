@@ -27,8 +27,12 @@
     "appId": "com.sweetspot.app",
     "productName": "Sweet Spot",
     "copyright": "Copyright © 2026 zombifiedturkey",
-    "electronVersion": "44.5.1",
-    "electronDist": "node_modules/electron/dist",
+    "electronVersion": "44.5.1+wvcus",
+    "electronDownload": {
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/",
+      "customDir": "v44.5.1+wvcus",
+      "customFilename": "electron-v44.5.1+wvcus-win32-x64.zip"
+    },
     "afterSign": "build/vmp-sign.js",
     "directories": {
       "output": "dist",
