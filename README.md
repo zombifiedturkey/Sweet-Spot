@@ -34,7 +34,7 @@ Sweet Spot plays your Spotify music in its own liquid-glass window, tucks into t
 - **Popular** songs sit beside each artist's discography. Spotify no longer gives personal apps an artist's top tracks, so this uses Spotify search ranking, which puts their most-played songs first, with remasters and repeats removed.
 - **Discover** (in the top dock) is powered by **ListenBrainz**, a free, open music service:
   - **Instant mix:** a fresh playlist around an artist or genre, in Familiar, Mixed or Deep cuts flavours. ListenBrainz now only builds these for signed-in users, so paste your free **ListenBrainz token** into Settings (find it at listenbrainz.org → Settings → User token). Without one, Sweet Spot makes a **quick mix from Spotify search** instead.
-  - **Community playlists** and **Made for you** are listed on the left. Click one and it opens in the panel on the right with its full track list, so you can flick between playlists without leaving the page.
+  - **Community playlists** (type a search and press Enter, or pick a topic) and **Made for you** are listed on the left. Click one and it opens in the panel on the right with its full track list, so you can flick between playlists without leaving the page.
   - **Made for you:** add your ListenBrainz username in Settings to get *Weekly Jams* and *Weekly Exploration*, a stand-in for Discover Weekly.
   - Songs are matched to Spotify as they scroll into view (matches are remembered), and any playlist or mix can be **saved to your Spotify playlists**.
 - **Your playlists:** create them with **+** in Your Library or **Add to playlist → New playlist…**. Edit details, delete, remove songs and **drag to reorder**.

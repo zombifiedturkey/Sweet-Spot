@@ -691,3 +691,9 @@ label.set-row { cursor: pointer; }
 .uc-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .uc-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; }
 .uc-bar span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+
+/* Community playlists: search on Enter */
+.lb-search { padding-right: 6px; }
+.lb-go { flex: none; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text-muted); background: rgba(255,255,255,.06); transition: background .15s, color .15s; }
+.lb-go:hover { background: rgba(255,255,255,.12); color: var(--text); }
+.lb-go.ready { background: var(--accent); color: var(--accent-text); }

@@ -2060,7 +2060,7 @@
         <div class="disc-left" id="disc-left">
           <section class="disc-section">
             <h2 class="section-title">Community playlists</h2>
-            <div class="search-bar"><span class="ico">${ICONS.search}</span><input id="lb-q" placeholder="Search playlists people have shared, e.g. road trip" value="${esc(route.q || '')}" spellcheck="false"></div>
+            <form class="search-bar lb-search" id="lb-form" autocomplete="off"><span class="ico">${ICONS.search}</span><input id="lb-q" placeholder="Search playlists people have shared, then press Enter" value="${esc(route.q || '')}" spellcheck="false"><button type="submit" class="lb-go" id="lb-go" title="Search (Enter)">Search</button></form>
             <div class="chips comm-ideas">${COMMUNITY_IDEAS.map((q) => `<button class="chip" data-cq="${esc(q)}">${esc(q)}</button>`).join('')}</div>
             <div id="lb-results" class="lb-list"><p class="muted small lb-hint">Search, or pick a topic above.</p></div>
           </section>
@@ -2136,6 +2136,7 @@
     let timer;
     const runCommunity = async (q) => {
       route.q = q; // kept in history so Back returns to the same results
+      if ($('lb-go')) $('lb-go').classList.remove('ready');
       const out = $('lb-results');
       if (!out) return;
       view.querySelectorAll('[data-cq]').forEach((b) => b.classList.toggle('on', b.dataset.cq === q));
@@ -2160,7 +2161,13 @@
         if (c.alive() && $('lb-q').value.trim() === q) out.innerHTML = `<p class="error small">Search failed: ${esc(ipcMsg(e))}</p>`;
       }
     };
-    $('lb-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => runCommunity($('lb-q').value.trim()), 700); });
+    // Searches only run on Enter (or the Search button): every search is heavy work for
+    // ListenBrainz, so half-typed words aren't sent while you type.
+    $('lb-form').addEventListener('submit', (e) => { e.preventDefault(); runCommunity($('lb-q').value.trim()); });
+    $('lb-q').addEventListener('input', () => {
+      const q = $('lb-q').value.trim();
+      $('lb-go').classList.toggle('ready', q.length >= 3 && q !== route.q);
+    });
     view.querySelectorAll('[data-cq]').forEach((b) => b.onclick = () => { $('lb-q').value = b.dataset.cq; runCommunity(b.dataset.cq); });
     if (route.q) runCommunity(route.q);
     if (route.sel) showPlaylistDetail(route.sel, route.selKind, route, c, markSelected);
