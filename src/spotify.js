@@ -49,17 +49,22 @@
     }
     await waitForBudget(background);
     const token = await window.sweetspot.getToken();
+    const offline = () => Object.assign(new Error('Can’t reach Spotify. Check your internet connection.'), { status: 0, offline: true });
+    if (token && token.offline) throw offline();
     if (!token) throw Object.assign(new Error('Not signed in'), { status: 401 });
     const url = new URL(BASE + path);
     if (query) for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== null) url.searchParams.set(k, v);
-    const res = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(body ? { 'Content-Type': 'application/json' } : {})
-      },
-      body: body ? JSON.stringify(body) : undefined
-    });
+    let res;
+    try {
+      res = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body ? { 'Content-Type': 'application/json' } : {})
+        },
+        body: body ? JSON.stringify(body) : undefined
+      });
+    } catch { throw offline(); }
     if (res.status === 429) {
       // Retry-After isn't always readable from the app, so fall back to a growing wait.
       const secs = Math.max(1, Number(res.headers.get('Retry-After')) || [5, 15, 30, 60][Math.min(strikes, 3)]);

@@ -452,7 +452,10 @@ ipcMain.handle('auth:login', async () => {
   return true;
 });
 ipcMain.handle('auth:logout', () => { auth.logout(); return true; });
-ipcMain.handle('auth:token', () => auth.getAccessToken());
+ipcMain.handle('auth:token', async () => {
+  try { return await auth.getAccessToken(); }
+  catch (e) { return e.offline ? { offline: true } : null; }
+});
 
 ipcMain.handle('settings:get', () => ({
   ...settings.load(),

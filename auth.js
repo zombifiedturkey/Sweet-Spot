@@ -73,13 +73,20 @@ function hasAllScopes() {
 const b64url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 async function tokenRequest(params) {
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(params)
-  });
+  let res;
+  try {
+    res = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(params),
+      signal: AbortSignal.timeout(20000)
+    });
+  } catch {
+    // No connection (e.g. Windows just started and Wi-Fi isn't up yet).
+    throw Object.assign(new Error('Can’t reach Spotify'), { offline: true });
+  }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error_description || body.error || `Token request failed (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error(body.error_description || body.error || `Token request failed (${res.status})`), { status: res.status, code: body.error });
   return body;
 }
 
@@ -156,7 +163,13 @@ async function getAccessToken() {
     }).then(storeTokenResponse).finally(() => { refreshing = null; });
   }
   try { await refreshing; return tokens.access_token; }
-  catch (e) { tokens = null; saveTokens(); return null; }
+  catch (e) {
+    // Only forget the sign-in when Spotify actually rejects it (revoked, or a changed
+    // Client ID). No internet, a timeout or a Spotify hiccup keeps it for next time.
+    const rejected = e.status === 400 || e.status === 401 || /invalid_grant|invalid_client/.test(e.code || '');
+    if (!rejected) throw Object.assign(new Error('OFFLINE'), { offline: true });
+    tokens = null; saveTokens(); return null;
+  }
 }
 
 function logout() { tokens = null; saveTokens(); }

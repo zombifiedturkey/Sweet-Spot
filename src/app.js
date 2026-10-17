@@ -106,11 +106,20 @@
 
   async function startApp() {
     show('app');
-    try {
-      me = await API.me();
-    } catch (e) {
-      if (e.status === 401) { await window.sweetspot.logout(); return show('login'); }
-      if (e.status === 403) banner('Spotify refused access. Check your account is added under User Management in your developer dashboard app, and that it has Premium.');
+    // After Windows starts, the internet may not be up yet: keep the sign-in and wait for it.
+    for (let wait = 3000, waited = false; ; wait = Math.min(wait * 2, 60000)) {
+      try {
+        me = await API.me();
+        if (waited) banner('Connected to Spotify');
+        break;
+      } catch (e) {
+        if (e.status === 401) { await window.sweetspot.logout(); return show('login'); }
+        if (e.status === 403) { banner('Spotify refused access. Check your account is added under User Management in your developer dashboard app, and that it has Premium.'); break; }
+        if (!e.offline && !(e.status >= 500)) break;
+        waited = true;
+        banner('Waiting for your internet connection to reach Spotify…', true);
+        await new Promise((r) => setTimeout(r, wait));
+      }
     }
     loadPlaylists();
     navigate({ view: 'home' });
@@ -350,7 +359,7 @@
   function initPlayer() {
     player = new Spotify.Player({
       name: 'Sweet Spot',
-      getOAuthToken: (cb) => window.sweetspot.getToken().then((t) => cb(t || '')),
+      getOAuthToken: (cb) => window.sweetspot.getToken().then((t) => cb(typeof t === 'string' ? t : '')),
       volume
     });
 
